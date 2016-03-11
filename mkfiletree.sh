@@ -1,11 +1,10 @@
 #!/bin/bash
 
-ROOT_DIR=`pwd`/filetree_rootdir
-DIRS_BASENAME=dir
-FILES_BASENAME=file
+ROOT_DIR="`pwd`/filetree_rootdir"
+DIRS_BASENAME="dir"
+FILES_BASENAME="file"
 
-function print_help
-{
+function print_help {
 	echo -e "\nUsage:\n `basename $0` [options] <level1-breadth> [level2-breadth]..."
 	echo -e "\nOptions: \
 		\n --root-dir		<root-directory-path>	(Default: \"./`basename $ROOT_DIR`)\" \
@@ -13,7 +12,9 @@ function print_help
 		\n --files-basename	<files basename>	(Default: \"$FILES_BASENAME\")\n"		
 }
 
-ARGS=`getopt -o '+h' --long 'help,root-dir:,dirs-basename:,files-basename:' \
+LONG_OPTS="help,root-dir:,dirs-basename:,files-basename:"
+
+ARGS=`getopt -o '+h' --long "$LONG_OPTS" \
      -n $(basename $0) -- "$@"`
 
 if [ $? != 0 ] ; then 
@@ -23,6 +24,7 @@ fi
 
 eval set -- "$ARGS"
 
+# parse command line arguments
 while true ; do
 	case "$1" in
 		--root-dir)			ROOT_DIR=$2 ; shift 2 ;;
@@ -48,7 +50,7 @@ function create_filetree
 	done
 }
 
-if [[ $# == 0 ]] ; then
+if [ $# -eq 0 ] ; then
 	echo "`basename $0`: at least level 1 breadth required" >&2
 	print_help
 	echo "Terminating..." >&2
