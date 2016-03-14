@@ -94,5 +94,8 @@ while true ; do
 			echo Invalid input ; echo Press Enter ; read
 		;;
 	esac
+
+	clear
+
 done
 
