@@ -11,10 +11,10 @@ function find_command {
 	VAR=`which $COMMAND`
 
 	if [ $VAR ] ; then
-		dbg_echo "command found in PATH."
+		dbg_echo "command found."
 		eval $1=$VAR
 	else
-		dbg_echo "command not found in PATH. try ./"
+		dbg_echo "command not found, try ./"
 		if [ ! -x ./$COMMAND ] ; then
 			dbg_echo "command not found anywhere."
 			return 1
@@ -25,7 +25,6 @@ function find_command {
 }
 
 function track_n_kick {
-
 	while true ; do
 		pgrep `basename $1` > /dev/null
 
@@ -46,43 +45,85 @@ function track_n_kick {
 
 		sleep $2
 
-	done 2> /dev/null # beware when $ bash -x $0
+	done
+}
+
+
+function ask_check_sleep_timeout {
+	read -p "Enter sleep timeout: " VAR
+	if [[ $VAR =~ ^[0-9]+[smhd]?$ ]] ; then
+		eval $1=$VAR
+	else
+		echo "\"$VAR\" is not valid integer value"
+	fi
+}
+
+function ask_check_process_name {
+	read -ep "Enter process name: " VAR
+	find_command VAR
+	if [ $? -eq 0 ] ; then 
+		eval $1=$VAR
+	else
+		echo "\"$VAR\" command not found anywhere"
+	fi
+}
+
+# TODO handle command-line arguments
+
+function print_set_daemon_menu {
+	echo "1. set process name ($PROCESS_NAME)" 
+	echo "2. set timeout ($SLEEP_TIMEOUT)"
+	echo "3. toggle debug messages ($DEBUG)"
+	echo "4. start daemon"
+	echo "5. exit"
 }
 
 PROCESS_NAME="./dummy.sh"
 DEBUG=1
-TIMEOUT=3
+SLEEP_TIMEOUT=3
 
+function set_cron_jobs {
+	echo -n ""
+}
+
+function set_daemon {
+	while true ; do
+		echo ""
+		print_set_daemon_menu
+		echo ""
+		read -p "Enter your choice: " CHOICE
+		case "$CHOICE" in
+			1)	ask_check_process_name PROCESS_NAME ;;	
+			2)	ask_check_sleep_timeout SLEEP_TIMEOUT ;;
+			3)	if [ $DEBUG -eq 0 ] ; then DEBUG=1; else DEBUG=0; fi ;;
+			4)  track_n_kick $PROCESS_NAME $SLEEP_TIMEOUT ;; # TODO fork
+			5)	return 0 ;;
+		esac
+		echo ""
+		read -p "Press Enter..."
+		clear
+	done
+}
+
+function print_main_menu {
+	echo "1. set daemon"
+	echo "2. set cron jobs"
+	echo "3. exit"
+} 
+
+# main
 while true ; do
-	echo -e "\n1. set process name (\"$PROCESS_NAME\")"
-	echo "2. set timeout ($TIMEOUT)"
-	echo "3. toggle output debug messages ($DEBUG)"
-	echo "4. start"
+	echo ""
+	print_main_menu	
 	echo ""
 	read -p "Enter your choice: " CHOICE
 
 	case "$CHOICE" in 
-		1) 
-			read -ep "Enter process name: " VAR
-			find_command VAR
-			if [ $? -eq 0 ] ; then 
-				PROCESS_NAME=$VAR
-			else
-				dbg_echo "\"$VAR\" command is not found anywhere"
-			fi
-		;;
-		2)
-			read -p "Enter timeout: " VAR
-			if [[ $VAR =~ ^[0-9]+[smhd]?$ ]] ; then
-				TIMEOUT=$VAR
-			else
-				dbg_echo "\"$VAR\" is not valid integer value"
-			fi
-		;;
-		3) if [ $DEBUG -eq 0 ] ; then DEBUG=1; else DEBUG=0; fi ;;
-		4)
-			track_n_kick $PROCESS_NAME $TIMEOUT
-		;;
+		1)	set_daemon ;;
+		2)	echo "not implemented" ;;
+		3)	exit 0 ;;
 	esac
+
+	clear
 done
 
