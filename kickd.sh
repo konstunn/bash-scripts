@@ -48,7 +48,6 @@ function track_n_kick {
 	done
 }
 
-
 function ask_check_sleep_timeout {
 	read -p "Enter sleep timeout: " VAR
 	if [[ $VAR =~ ^[0-9]+[smhd]?$ ]] ; then
@@ -86,6 +85,47 @@ function set_cron_jobs {
 	echo -n ""
 }
 
+JOB_HEADER=kickd.sh
+
+function list_cron_jobs {
+	# TODO make hamster readable
+	#crontab -l | sed -n "/^# $JOB_HEADER/{p;n;p}"
+	crontab -l | grep -A 1 -e "^# $JOB_HEADER"
+	if [ $? -eq 1 ] ; then
+		echo "No jobs."
+	fi
+}
+
+function print_set_cron_jobs_menu {
+	echo "1. list jobs"
+	echo "2. add job"
+	echo "3. delete job"
+	echo "4. set job"
+	echo "5. enable/disable job"
+	echo "6. exit"
+}
+
+function set_cron_jobs {
+	while true ; do
+		echo ""
+		print_set_cron_jobs_menu
+		echo ""
+		read -p "Enter your choice: " CHOICE
+		
+		echo ""
+		case "$CHOICE" in
+			1)	list_cron_jobs
+			;;
+			2)
+			;;
+			6)	return 0 ;;
+		esac
+		echo ""
+		read -p "Press Enter..."
+		clear
+	done
+}
+
 function set_daemon {
 	while true ; do
 		echo ""
@@ -117,13 +157,15 @@ while true ; do
 	print_main_menu	
 	echo ""
 	read -p "Enter your choice: " CHOICE
+	echo "" 
 
 	case "$CHOICE" in 
 		1)	set_daemon ;;
-		2)	echo "not implemented" ;;
+		2)	set_cron_jobs ;;
 		3)	exit 0 ;;
 	esac
-
+	echo ""
+	read -p "Press Enter... "
 	clear
 done
 
