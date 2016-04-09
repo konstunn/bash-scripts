@@ -1,22 +1,26 @@
 #!/bin/bash
 
+# TODO may be it would better to operate with pid 
+# instead of process name ?
 function print_help {
 	echo -e "\nUsage:\n `basename $0` [options]"
 	echo -e "\nOptions:		\
 		\n --menu | -m		\
 		\n --process | -p	<process_name> \
 		\n --help | -h \n"
-		# TODO may be it would better to operate with pid 
-		# instead of process name ?
 }
 
+# robust way to get path to itself
+SELF_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"/"$(basename $0)"
+
+# if no arguments, show text menu
 if [ $# -eq 0 ] ; then 
 	TEXT_MENU=1
 fi
 
 # parse command line arguments
-OPTS=+h,t:,m
-LONG_OPTS="help,menu,track:"
+OPTS=+h,k:,m
+LONG_OPTS="help,menu,kick:"
 
 ARGS=`getopt -o $OPTS --long $LONG_OPTS \
      -n $(basename $0) -- "$@"`
@@ -30,12 +34,13 @@ fi
 
 eval set -- "$ARGS"
 
+# parse command line arguments
 while true ; do
 	case "$1" in 
 		--menu | -m)
 			TEXT_MENU=1 ; shift 
 		;;
-		--process | -p)
+		--kick| -k)
 			KICK_NOW=1;	PROCESS="$2" ; shift 2
 		;;
 		--help | -h)	print_help; exit 0 ;;
@@ -57,12 +62,13 @@ function find_command {
 	VAR=`which $COMMAND`
 
 	if [ $VAR ] ; then
-		dbg_echo "command found."
+		echo "command found."
 		eval $1=$VAR
+		return 0
 	else
-		dbg_echo "command not found, try ./"
+		echo "command not found, trying to find in ./"
 		if [ ! -x ./$COMMAND ] ; then
-			dbg_echo "command not found anywhere."
+			echo "command not found anywhere."
 			return 1
 		fi
 		eval $1=./$COMMAND
@@ -70,38 +76,41 @@ function find_command {
 	return 0
 }
 
-# TODO adopt
+# $1 - process name
 function track_n_kick {
-	while true ; do
 		pgrep `basename $1` > /dev/null
 
 		if [ $? -gt 0 ] ; then
-			dbg_echo "process not found"
+			echo "process not found"
 
 			if [ -x $1 ] ; then
-				dbg_echo "kicking up.."
+				echo "kicking up.."
 				$1 &
-				dbg_echo "kicked up."
+				echo "kicked up."
 			else 
-				dbg_echo "executable file \"$1\" lost. terminating.."
+				# TODO log that
+				echo "executable file \"$1\" lost. terminating.."
 				return 1
 			fi
 		else
-			dbg_echo "process alive"
+			echo "process alive"
 		fi
-
-		sleep $2
-
-	done
 }
 
 # TODO adopt
-function ask_check_sleep_timeout {
-	read -p "Enter sleep timeout: " VAR
-	if [[ $VAR =~ ^[0-9]+[smhd]?$ ]] ; then
-		eval $1=$VAR
+# $1 - timeout variable name   
+function ask_check_minutes {
+	read -p "Enter kick munutes: " DOW
+
+	REGEX=""
+	
+	# validate
+	if ! [[ $DOW =~ ^(([0-5][0-9])|(\2-\2(/\2)?))(,\1)*$ ]] 
+	then
+		echo "Invalid input '$DOW'"
+		return 1
 	else
-		echo "\"$VAR\" is not valid integer value"
+		eval $1=$VAR
 	fi
 }
 
@@ -112,6 +121,7 @@ function ask_check_process_name {
 		eval $1=$VAR
 	else
 		echo "\"$VAR\" command not found anywhere"
+		return 1
 	fi
 }
 
@@ -132,45 +142,25 @@ function list_cron_jobs {
 # $1 - name, 
 # $2 - time (hh:mm), 
 # $3 - crontab day of week
-# $4 - path to track 
+# $4 - process name
 function add_cron_job {
 	HOURS=$(echo $2 | awk -F':' '{print $1}')
 	MINUTES=$(echo $2 | awk -F':' '{print $2}')
 
 	DOW=$3 # crontab day of week 
 
-	TRACK="$4"
+	PROCESS="$4"
 
-	# TODO adopt
-	crontab -l \
-		| sed -e \ 
-		# TODO (crontab -l ; echo "" ) | crontab -
-		"\$a\# $JOB_HEADER $1\n
-		\t$MINUTES\t$HOURS\t\*\t\*\t$DOW\t$SELF_PATH -t \"$TRACK\"\n" \
-		| crontab -
+	(crontab -l 
+	echo -e "# $JOB_HEADER $1\n
+		\t$MINUTES\t$HOURS\t*\t*\t$DOW\t$SELF_PATH -k \"$PROCESS\"\n") \
+	| crontab -
 
 	if [ $? -eq 0 ] ; then
 		echo -e "\nJob was added"
+	else
+		echo -e "\nFailed to add job."
 	fi
-}
-
-function set_daemon {
-	while true ; do
-		echo ""
-		print_set_daemon_menu
-		echo ""
-		read -p "Enter your choice: " CHOICE
-		case "$CHOICE" in
-			1)	ask_check_process_name PROCESS_NAME ;;	
-			2)	ask_check_sleep_timeout SLEEP_TIMEOUT ;;
-			3)	if [ $DEBUG -eq 0 ] ; then DEBUG=1; else DEBUG=0; fi ;;
-			4)  track_n_kick $PROCESS_NAME $SLEEP_TIMEOUT ;; # TODO fork
-			5)	return 0 ;;
-		esac
-		echo ""
-		read -p "Press Enter..."
-		clear
-	done
 }
 
 if [ $TEXT_MENU -eq 1 ] ; then
@@ -179,12 +169,9 @@ if [ $TEXT_MENU -eq 1 ] ; then
 	crontab -l > /dev/null		
 	if [ $? -gt 0 ] ; then
 		# create one
-		echo -e "\n" | crontab - 
-		# FIXME if crontab already exists
-		# and is absolutely empty "" then add job function fails 
+		echo -n "" | crontab - 
 	else 
 		# backup crontab
-		echo -n ""
 		mkdir -p ./crontab.bkp
 		crontab -l > ./crontab.bkp/`date +%H%M%S-%d-%m-%Y`.crontab.bkp
 	fi
@@ -205,6 +192,8 @@ if [ $TEXT_MENU -eq 1 ] ; then
 			1) list_cron_jobs
 			;;
 			2)
+				ask_check_process_name PROCESS
+				if [ $? -gt 0 ] ; then break ; fi
 			;;
 			6)	exit 0 ;;
 		esac
